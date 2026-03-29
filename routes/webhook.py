@@ -1,9 +1,14 @@
+# routes/webhook.py
 from flask import request
-from telegram import Update
+import asyncio
 
 def webhook_handler(tg_app, bot):
     def handler():
-        update = Update.de_json(request.get_json(), bot)
-        tg_app.update_queue.put(update)
-        return "ok"
+        update = request.get_json()
+        print("Received update:", update)  # DEBUG
+
+        # Put the update into the async queue properly
+        asyncio.create_task(tg_app.update_queue.put(update))
+
+        return "OK"
     return handler
