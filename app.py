@@ -1,3 +1,4 @@
+import asyncio
 import os
 import threading
 from flask import Flask
@@ -39,15 +40,10 @@ app.add_url_rule(
 )
 
 if __name__ == "__main__":
-    # Start background reminder checker
     threading.Thread(target=check_reminders, args=(bot,), daemon=True).start()
 
-    # Initialize Telegram bot
-    tg_app.initialize()
+    # Run async initialization correctly
+    asyncio.run(tg_app.initialize())
+    asyncio.run(bot.set_webhook(f"{RENDER_URL}/{TOKEN}"))
 
-    # Set webhook to public Render URL
-    bot.set_webhook(f"{RENDER_URL}/{TOKEN}")
-
-    # Use Render-assigned port
-    PORT = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=PORT)
+    app.run(host="0.0.0.0", port=10000)
