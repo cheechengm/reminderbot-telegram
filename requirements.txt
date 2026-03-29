@@ -1,4 +1,5 @@
-flask
+Flask==2.3.3
 python-telegram-bot==20.3
-pymongo
-python-dotenv
+pymongo==4.4.0
+httpx==0.24.1
+gunicorn==21.2.0
