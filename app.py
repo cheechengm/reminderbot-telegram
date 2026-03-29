@@ -39,10 +39,15 @@ app.add_url_rule(
 )
 
 if __name__ == "__main__":
+    # Start background reminder checker
     threading.Thread(target=check_reminders, args=(bot,), daemon=True).start()
 
+    # Initialize Telegram bot
     tg_app.initialize()
 
+    # Set webhook to public Render URL
     bot.set_webhook(f"{RENDER_URL}/{TOKEN}")
 
-    app.run(host="0.0.0.0", port=10000)
+    # Use Render-assigned port
+    PORT = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=PORT)
