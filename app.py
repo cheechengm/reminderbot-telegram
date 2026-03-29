@@ -1,8 +1,7 @@
-import asyncio
+# app.py
 import os
-import threading
-from flask import Flask
-
+import asyncio
+from fastapi import FastAPI, Request
 from telegram import Bot
 from telegram.ext import ApplicationBuilder, CommandHandler
 
@@ -10,11 +9,7 @@ from handlers.start import start
 from handlers.remind import remind
 from handlers.list import list_reminders
 from handlers.delete import delete_reminder
-
 from services.reminder_service import check_reminders
-from routes.webhook import webhook_handler
-
-app = Flask(__name__)
 
 TOKEN = os.getenv("BOT_TOKEN")
 RENDER_URL = os.getenv("RENDER_URL")
@@ -28,22 +23,22 @@ tg_app.add_handler(CommandHandler("remind", remind))
 tg_app.add_handler(CommandHandler("list", list_reminders))
 tg_app.add_handler(CommandHandler("delete", delete_reminder))
 
-# Routes
-@app.route("/")
-def home():
-    return "Bot running!"
+app = FastAPI()
 
-app.add_url_rule(
-    f"/{TOKEN}",
-    view_func=webhook_handler(tg_app, bot),
-    methods=["POST"]
-)
+@app.on_event("startup")
+async def startup_event():
+    # Start reminders in background
+    asyncio.create_task(check_reminders(bot))
+    # Initialize bot and set webhook
+    await tg_app.initialize()
+    await bot.set_webhook(f"{RENDER_URL}/{TOKEN}")
 
-if __name__ == "__main__":
-    threading.Thread(target=check_reminders, args=(bot,), daemon=True).start()
+@app.get("/")
+async def home():
+    return {"status": "Bot running!"}
 
-    # Run async initialization correctly
-    asyncio.run(tg_app.initialize())
-    asyncio.run(bot.set_webhook(f"{RENDER_URL}/{TOKEN}"))
-
-    app.run(host="0.0.0.0", port=10000)
+@app.post(f"/{TOKEN}")
+async def webhook(request: Request):
+    update = await request.json()
+    await tg_app.update_queue.put(update)
+    return {"status": "ok"}
