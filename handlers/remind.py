@@ -10,6 +10,13 @@ async def remind(update, context):
         if len(args) < 2:
             raise ValueError("Missing arguments")
 
+        # --- RECURRENCE LOGIC ---
+        repeat_type = None
+        if args[0].lower() in ["daily", "weekly"]:
+            repeat_type = args[0].lower()
+            args = args[1:] # Shift args to handle time/message normally
+        # ------------------------
+
         time_input = args[0]
         # Check if the second argument is a time (making the first a date)
         if len(args) > 2 and (":" in args[1] or (args[1].isdigit() and len(args[1]) <= 4)):
@@ -32,62 +39,56 @@ async def remind(update, context):
             minutes = int(time_match.group(2))
             
             if date_input:
-                # Parse Date (DD/MM or DDMM)
                 date_match = re.match(r"^(\d{1,2})/?(\d{2})$", date_input)
                 if date_match:
                     day = int(date_match.group(1))
                     month = int(date_match.group(2))
-                    
-                    # Create date for current year
                     remind_time_sg = now_sg.replace(month=month, day=day, hour=hours, minute=minutes, second=0, microsecond=0)
-                    
-                    # If this date is in the past (e.g., setting Jan in Dec), move to next year
                     if remind_time_sg < now_sg:
                         remind_time_sg = remind_time_sg.replace(year=now_sg.year + 1)
                 else:
                     raise ValueError("Invalid date format")
             else:
-                # No date provided, assume today (or tomorrow if time passed)
                 remind_time_sg = now_sg.replace(hour=hours, minute=minutes, second=0, microsecond=0)
                 if remind_time_sg < now_sg:
                     remind_time_sg += timedelta(days=1)
         else:
-            # 3. Handle as Minutes (only if no date was provided)
             if date_input:
                 raise ValueError("Format error")
             minutes_delta = int(time_input)
             remind_time_sg = now_sg + timedelta(minutes=minutes_delta)
 
-        # 4. Calculate Countdown (UX Improvement)
+        # 3. Calculate Countdown
         diff = remind_time_sg - now_sg
         days = diff.days
         hours_rem, remainder = divmod(int(diff.total_seconds()), 3600)
-        # We need total hours for the display if it's less than a day
         minutes_rem, _ = divmod(remainder, 60)
 
         if days > 0:
-            # Re-calculate hours to be hours within the day
-            hours_within_day = hours_rem % 24
-            countdown_text = f"{days}d {hours_within_day}h {minutes_rem}m"
+            countdown_text = f"{days}d {hours_rem % 24}h {minutes_rem}m"
         elif hours_rem > 0:
             countdown_text = f"{hours_rem}h {minutes_rem}m"
         else:
             countdown_text = f"{minutes_rem}m"
 
-        # 5. Save to DB as UTC (Subtract 8 hours)
+        # 4. Save to DB with 'repeat' field
         remind_at_utc = remind_time_sg - timedelta(hours=8)
         reminders.insert_one({
             "user_id": user_id,
             "message": message,
-            "remind_at": remind_at_utc
+            "remind_at": remind_at_utc,
+            "repeat": repeat_type  # Added this field
         })
 
-        # 6. Pretty confirmation with Live Countdown
+        # 5. Confirmation Message
+        repeat_label = f"\n🔁 **Repeat:** `{repeat_type.capitalize()}`" if repeat_type else ""
         friendly_date = remind_time_sg.strftime("%d %b, %H:%M")
+        
         await update.message.reply_text(
             f"✅ **Reminder Set!**\n\n"
             f"📅 **Date:** `{friendly_date}` SGT\n"
-            f"⏳ **Starts in:** `{countdown_text}`\n"
+            f"⏳ **Starts in:** `{countdown_text}`"
+            f"{repeat_label}\n"
             f"📝 **Note:** {message}",
             parse_mode="Markdown"
         )
@@ -96,9 +97,8 @@ async def remind(update, context):
         print(f"Error: {e}")
         await update.message.reply_text(
             "❌ **Invalid Format**\n\n"
-            "Try these:\n"
-            "• `/remind 10 buy milk` (10 mins)\n"
-            "• `/remind 19:30 call mom` (Tonight)\n"
-            "• `/remind 31/03 09:00 meeting` (Specific date)",
+            "• `/remind 10 buy milk` (Once)\n"
+            "• `/remind daily 08:00 gym` (Every day)\n"
+            "• `/remind weekly 31/03 10:00 meeting` (Every week)",
             parse_mode="Markdown"
         )
