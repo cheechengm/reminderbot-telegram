@@ -12,7 +12,6 @@ async def remind(update, context):
 
         time_input = args[0]
         # Check if the second argument is a time (making the first a date)
-        # e.g., /remind 31/03 10:00 message
         if len(args) > 2 and (":" in args[1] or (args[1].isdigit() and len(args[1]) <= 4)):
             date_input = args[0]
             time_input = args[1]
@@ -38,8 +37,13 @@ async def remind(update, context):
                 if date_match:
                     day = int(date_match.group(1))
                     month = int(date_match.group(2))
-                    # Use current year, set specific date/time
+                    
+                    # Create date for current year
                     remind_time_sg = now_sg.replace(month=month, day=day, hour=hours, minute=minutes, second=0, microsecond=0)
+                    
+                    # If this date is in the past (e.g., setting Jan in Dec), move to next year
+                    if remind_time_sg < now_sg:
+                        remind_time_sg = remind_time_sg.replace(year=now_sg.year + 1)
                 else:
                     raise ValueError("Invalid date format")
             else:
@@ -54,21 +58,37 @@ async def remind(update, context):
             minutes_delta = int(time_input)
             remind_time_sg = now_sg + timedelta(minutes=minutes_delta)
 
-        # 4. Save to DB as UTC (Subtract 8 hours)
-        remind_at_utc = remind_time_sg - timedelta(hours=8)
+        # 4. Calculate Countdown (UX Improvement)
+        diff = remind_time_sg - now_sg
+        days = diff.days
+        hours_rem, remainder = divmod(int(diff.total_seconds()), 3600)
+        # We need total hours for the display if it's less than a day
+        minutes_rem, _ = divmod(remainder, 60)
 
+        if days > 0:
+            # Re-calculate hours to be hours within the day
+            hours_within_day = hours_rem % 24
+            countdown_text = f"{days}d {hours_within_day}h {minutes_rem}m"
+        elif hours_rem > 0:
+            countdown_text = f"{hours_rem}h {minutes_rem}m"
+        else:
+            countdown_text = f"{minutes_rem}m"
+
+        # 5. Save to DB as UTC (Subtract 8 hours)
+        remind_at_utc = remind_time_sg - timedelta(hours=8)
         reminders.insert_one({
             "user_id": user_id,
             "message": message,
             "remind_at": remind_at_utc
         })
 
-        # Pretty confirmation
+        # 6. Pretty confirmation with Live Countdown
         friendly_date = remind_time_sg.strftime("%d %b, %H:%M")
         await update.message.reply_text(
-            f"✅ **Reminder Set!**\n"
-            f"📅 Date: `{friendly_date}` SGT\n"
-            f"📝 Note: {message}",
+            f"✅ **Reminder Set!**\n\n"
+            f"📅 **Date:** `{friendly_date}` SGT\n"
+            f"⏳ **Starts in:** `{countdown_text}`\n"
+            f"📝 **Note:** {message}",
             parse_mode="Markdown"
         )
 
