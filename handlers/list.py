@@ -11,25 +11,32 @@ async def list_reminders(update, context):
         await update.message.reply_text("📭 You have no active reminders.")
         return
 
+    # Use reply_text for the header
     await update.message.reply_text("📋 *Your Active Reminders:*", parse_mode="Markdown")
 
     for r in user_reminders:
-        # Convert UTC back to SGT for display (+8 hours)
+        # 1. Convert UTC back to SGT for display (+8 hours)
         sgt_time = r['remind_at'] + timedelta(hours=8)
-        time_str = sgt_time.strftime("%d %b, %H:%M")
         
-        # We store the MongoDB _id in the callback_data so we know which one to delete
+        # 2. Add the Day of the Week (e.g., Mon, 31 Mar | 19:30)
+        time_str = sgt_time.strftime("%a, %d %b | %H:%M")
+        
+        # 3. Add a Repeat Icon if it's daily or weekly
+        repeat_type = r.get("repeat")
+        icon = "🔁 " if repeat_type else "⏰ "
+        repeat_suffix = f" ({repeat_type.capitalize()})" if repeat_type else ""
+
         keyboard = [
             [
                 InlineKeyboardButton("🗑️ Delete", callback_data=f"del_{r['_id']}"),
-                # Optional: Add an edit button if you want to implement it later
-                # InlineKeyboardButton("✏️ Edit", callback_data=f"edit_{r['_id']}")
             ]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
+        # 4. Final formatted message
         await update.message.reply_text(
-            f"⏰ *{time_str}*\n📝 {r['message']}",
+            f"{icon}*{time_str}*{repeat_suffix}\n"
+            f"📝 {r['message']}",
             reply_markup=reply_markup,
             parse_mode="Markdown"
         )

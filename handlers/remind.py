@@ -14,11 +14,10 @@ async def remind(update, context):
         repeat_type = None
         if args[0].lower() in ["daily", "weekly"]:
             repeat_type = args[0].lower()
-            args = args[1:] # Shift args to handle time/message normally
+            args = args[1:] 
         # ------------------------
 
         time_input = args[0]
-        # Check if the second argument is a time (making the first a date)
         if len(args) > 2 and (":" in args[1] or (args[1].isdigit() and len(args[1]) <= 4)):
             date_input = args[0]
             time_input = args[1]
@@ -27,14 +26,10 @@ async def remind(update, context):
             date_input = None
             message = " ".join(args[1:])
 
-        # 1. Get Singapore Time (UTC + 8)
         now_sg = datetime.utcnow() + timedelta(hours=8)
         remind_time_sg = None
 
-        # 2. Parse Time (HH:MM or HHMM)
-        time_match = re.match(r"^(\d{1,2}):?(\d{2})$", time_input)
-        
-        if time_match:
+        if time_match := re.match(r"^(\d{1,2}):?(\d{2})$", time_input):
             hours = int(time_match.group(1))
             minutes = int(time_match.group(2))
             
@@ -58,7 +53,6 @@ async def remind(update, context):
             minutes_delta = int(time_input)
             remind_time_sg = now_sg + timedelta(minutes=minutes_delta)
 
-        # 3. Calculate Countdown
         diff = remind_time_sg - now_sg
         days = diff.days
         hours_rem, remainder = divmod(int(diff.total_seconds()), 3600)
@@ -71,18 +65,19 @@ async def remind(update, context):
         else:
             countdown_text = f"{minutes_rem}m"
 
-        # 4. Save to DB with 'repeat' field
         remind_at_utc = remind_time_sg - timedelta(hours=8)
         reminders.insert_one({
             "user_id": user_id,
             "message": message,
             "remind_at": remind_at_utc,
-            "repeat": repeat_type  # Added this field
+            "repeat": repeat_type 
         })
 
-        # 5. Confirmation Message
+        # --- UPDATED SECTION 5: Day of Week Added ---
+        # %a gives the short day (Mon, Tue, etc.)
+        friendly_date = remind_time_sg.strftime("%a, %d %b %H:%M")
+        
         repeat_label = f"\n🔁 **Repeat:** `{repeat_type.capitalize()}`" if repeat_type else ""
-        friendly_date = remind_time_sg.strftime("%d %b, %H:%M")
         
         await update.message.reply_text(
             f"✅ **Reminder Set!**\n\n"
