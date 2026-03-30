@@ -4,42 +4,39 @@ from database.database import reminders
 
 async def list_reminders(update, context):
     user_id = update.message.chat_id
+    # Find all reminders for this user, sorted by time
     user_reminders = list(reminders.find({"user_id": user_id}).sort("remind_at", 1))
 
     if not user_reminders:
-        await update.message.reply_text("📭 **You have no active reminders.**", parse_mode="Markdown")
+        await update.message.reply_text("📭 You have no active reminders.")
         return
 
-    # We send the "Header" once. 
-    # TIP: You could also delete the previous header to keep the chat clean!
-    await update.message.reply_text("📋 *Active Reminders:*", parse_mode="Markdown")
+    # Use reply_text for the header
+    await update.message.reply_text("📋 *Your Active Reminders:*", parse_mode="Markdown")
 
     for r in user_reminders:
-        # 1. Standardize SGT conversion
+        # 1. Convert UTC back to SGT for display (+8 hours)
         sgt_time = r['remind_at'] + timedelta(hours=8)
         
-        # 2. Format: "Mon, 31 Mar | 19:30"
+        # 2. Add the Day of the Week (e.g., Mon, 31 Mar | 19:30)
         time_str = sgt_time.strftime("%a, %d %b | %H:%M")
         
-        # 3. Handle Icons and Repeat Labels
+        # 3. Add a Repeat Icon if it's daily or weekly
         repeat_type = r.get("repeat")
-        icon = "🔁" if repeat_type else "⏰"
-        repeat_label = f" [{repeat_type.upper()}]" if repeat_type else ""
+        icon = "🔁 " if repeat_type else "⏰ "
+        repeat_suffix = f" ({repeat_type.capitalize()})" if repeat_type else ""
 
-        # 4. COMPACT KEYBOARD (Better for 'Card' feel)
-        # We put the icon inside the button text to save space
-        keyboard = [[InlineKeyboardButton(f"🗑️ Delete Reminder", callback_data=f"del_{r['_id']}")]]
+        keyboard = [
+            [
+                InlineKeyboardButton("🗑️ Delete", callback_data=f"del_{r['_id']}"),
+            ]
+        ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        # 5. CLEANER MESSAGE BODY
-        # We use a code block for the time to make it stand out visually
-        formatted_message = (
-            f"{icon} `{time_str}`{repeat_label}\n"
-            f"└─ **{r['message']}**"
-        )
-
+        # 4. Final formatted message
         await update.message.reply_text(
-            formatted_message,
+            f"{icon}*{time_str}*{repeat_suffix}\n"
+            f"📝 {r['message']}",
             reply_markup=reply_markup,
             parse_mode="Markdown"
         )
