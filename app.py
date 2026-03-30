@@ -21,46 +21,58 @@ tg_app.add_handler(CommandHandler("start", start))
 tg_app.add_handler(CommandHandler("remind", remind))
 tg_app.add_handler(CommandHandler("list", list_reminders))
 tg_app.add_handler(CommandHandler("delete", delete_reminder))
-
 app = FastAPI()
 
-# ✅ SAFE startup (non-blocking, error-proof)
 @app.on_event("startup")
 async def startup_event():
     print("🚀 FastAPI startup started")
 
-    # Run bot init safely
     asyncio.create_task(safe_init_bot())
-
-    # Run reminder loop safely
     asyncio.create_task(safe_reminders())
 
     print("✅ Startup finished (server should bind now)")
 
-# ✅ Wrap bot init to prevent crashes
+
 async def safe_init_bot():
     try:
         print("🤖 Initializing bot...")
+
+        bot = Bot(token=TOKEN)
+        tg_app = ApplicationBuilder().token(TOKEN).build()
+
+        tg_app.add_handler(CommandHandler("start", start))
+        tg_app.add_handler(CommandHandler("remind", remind))
+        tg_app.add_handler(CommandHandler("list", list_reminders))
+        tg_app.add_handler(CommandHandler("delete", delete_reminder))
+
         await tg_app.initialize()
         await bot.set_webhook(f"{RENDER_URL}/{TOKEN}")
+
+        # store globally so webhook can use it
+        app.state.bot = bot
+        app.state.tg_app = tg_app
+
         print("✅ Bot initialized")
+
     except Exception as e:
         print("❌ Bot init failed:", e)
 
-# ✅ Wrap reminders to prevent blocking
+
 async def safe_reminders():
     try:
         print("⏰ Starting reminder loop...")
-        await check_reminders(bot)
+        await check_reminders(lambda: app.state.bot)
     except Exception as e:
         print("❌ Reminder loop crashed:", e)
+
 
 @app.get("/")
 async def home():
     return {"status": "Bot running!"}
 
+
 @app.post(f"/{TOKEN}")
 async def webhook(request: Request):
     update = await request.json()
-    await tg_app.update_queue.put(update)
+    await app.state.tg_app.update_queue.put(update)
     return {"status": "ok"}
