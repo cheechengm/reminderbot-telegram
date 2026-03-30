@@ -3,11 +3,13 @@ import asyncio
 from fastapi import FastAPI, Request
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler
+from telegram.ext import CallbackQueryHandler
 
 from handlers.start import start
 from handlers.remind import remind
 from handlers.list import list_reminders
 from handlers.delete import delete_reminder
+from handlers.callbacks import handle_callback 
 from services.reminder_service import check_reminders
 
 TOKEN = os.getenv("BOT_TOKEN")
@@ -31,6 +33,7 @@ async def initialize_everything_bg():
         tg_app.add_handler(CommandHandler("remind", remind))
         tg_app.add_handler(CommandHandler("list", list_reminders))
         tg_app.add_handler(CommandHandler("delete", delete_reminder))
+        tg_app.add_handler(CallbackQueryHandler(handle_callback)) 
 
         print("🤖 Background: Initializing Telegram...")
         await tg_app.initialize()
