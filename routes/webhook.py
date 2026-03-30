@@ -1,14 +1,9 @@
-# routes/webhook.py
-from flask import request
-import asyncio
+from fastapi import APIRouter, Request
 
-def webhook_handler(tg_app, bot):
-    def handler():
-        update = request.get_json()
-        print("Received update:", update)  # DEBUG
+router = APIRouter()
 
-        # Put the update into the async queue properly
-        asyncio.create_task(tg_app.update_queue.put(update))
-
-        return "OK"
-    return handler
+@router.post("/{token}")
+async def handler(request: Request):
+    update = await request.json()
+    await tg_app.update_queue.put(update)
+    return {"ok": True}
