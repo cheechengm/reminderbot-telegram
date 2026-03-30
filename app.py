@@ -12,8 +12,9 @@ from handlers.delete import delete_reminder
 from services.reminder_service import check_reminders
 
 TOKEN = os.getenv("BOT_TOKEN")
-RENDER_URL = os.getenv("RENDER_URL")
+RENDER_URL = os.getenv("RENDER_URL")  
 
+# Initialize bot objects
 bot = Bot(token=TOKEN)
 tg_app = ApplicationBuilder().token(TOKEN).build()
 
@@ -23,15 +24,23 @@ tg_app.add_handler(CommandHandler("remind", remind))
 tg_app.add_handler(CommandHandler("list", list_reminders))
 tg_app.add_handler(CommandHandler("delete", delete_reminder))
 
+# Initialize FastAPI
 app = FastAPI()
+
+async def init_bot():
+    """
+    Initialize the Telegram bot and set webhook.
+    This runs in background to prevent blocking FastAPI startup.
+    """
+    await tg_app.initialize()
+    await bot.set_webhook(f"{RENDER_URL}/{TOKEN}")
 
 @app.on_event("startup")
 async def startup_event():
-    # Start reminders in background
+    # Start reminders service in background
     asyncio.create_task(check_reminders(bot))
-    # Initialize bot and set webhook
-    await tg_app.initialize()
-    await bot.set_webhook(f"{RENDER_URL}/{TOKEN}")
+    # Initialize Telegram bot in background
+    asyncio.create_task(init_bot())
 
 @app.get("/")
 async def home():
@@ -39,6 +48,9 @@ async def home():
 
 @app.post(f"/{TOKEN}")
 async def webhook(request: Request):
+    """
+    Telegram webhook endpoint. Push updates into bot's update queue.
+    """
     update = await request.json()
     await tg_app.update_queue.put(update)
     return {"status": "ok"}
