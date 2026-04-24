@@ -4,7 +4,7 @@ A high-performance, asynchronous Telegram bot built with FastAPI and MongoDB, de
 Core Features
 Smart Time Parsing: Supports relative (10 mins), absolute (19:30 or 1930), and specific date (31/03 10:00) inputs.
 
-Interactive UI: Manage reminders via Inline Keyboards—no manual command typing for deletions.
+Interactive UI: Manage reminders via Inline Keyboards.
 
 SGT Sync: Engineered to handle Singapore Time (UTC+8) regardless of server location.
 
